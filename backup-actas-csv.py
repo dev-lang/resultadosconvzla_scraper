@@ -11,7 +11,7 @@ SAVE_DIR = os.path.join(os.getcwd(), 'resultadosconvzla')
 if not os.path.exists(SAVE_DIR):
     os.makedirs(SAVE_DIR)
 
-# Configuración de rangos e IDs - MODIFICAR RANGO PARA ABARCAR MAS O MENOS, RECOMIENDO TOMAR DE A RANGOS DE MÁXIMO 100 MIL ACTAS POR CARPETA
+# Configuración de rangos e IDs
 START_ID = 10400000
 END_ID = 10500000
 
@@ -60,29 +60,36 @@ def process_id(id):
         response.raise_for_status()  # Si la respuesta es un error, se lanza una excepción
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Intentamos encontrar la imagen en la página
-        img_tag = soup.find('div', {'id': 'searchCedula'}).find('img', {'class': 'img-fluid responsive-img'})
+        # Verificamos si encontramos el div 'searchCedula' antes de buscar la imagen
+        search_cedula_div = soup.find('div', {'id': 'searchCedula'})
         
-        # Verificamos si encontramos la URL de la imagen
-        if img_tag and 'src' in img_tag.attrs:
-            img_url = img_tag['src']
-            img_name = f"{id}_{os.path.basename(img_url)}"
-            save_path = os.path.join(SAVE_DIR, img_name)
-            logger.info(f"Imagen encontrada: {img_url}")
-            # Llama a tu función de descarga de imagen (asumimos que tienes una función 'download_image' para esto)
-            # download_image(img_url, save_path)  # Si quieres seguir descargando la imagen
+        if search_cedula_div:
+            # Si encontramos el div 'searchCedula', buscamos la imagen
+            img_tag = search_cedula_div.find('img', {'class': 'img-fluid responsive-img'})
             
-            # Guardamos la URL de la imagen en el CSV en la columna ACTA
-            save_reference_to_csv(id, url, img_url)
+            if img_tag and 'src' in img_tag.attrs:
+                img_url = img_tag['src']
+                img_name = f"{id}_{os.path.basename(img_url)}"
+                save_path = os.path.join(SAVE_DIR, img_name)
+                logger.info(f"Imagen encontrada: {img_url}")
+                # Llama a tu función de descarga de imagen (asumimos que tienes una función 'download_image' para esto)
+                # download_image(img_url, save_path)  # Si quieres seguir descargando la imagen
+                
+                # Guardamos la URL de la imagen en el CSV en la columna ACTA
+                save_reference_to_csv(id, url, img_url)
+            else:
+                logger.info(f"No se encontró imagen para el ID: {id}")
+                # Si no encontramos imagen, guardamos 'Revisar LOG' en el CSV
+                save_reference_to_csv(id, url, 'Revisar LOG')
         else:
-            logger.info(f"No se encontró imagen para el ID: {id}")
-            # Si no encontramos imagen, guardamos 'Revisar LOG' en el CSV
+            # Si no encontramos el div 'searchCedula', registramos un error
+            logger.error(f"No se encontró 'searchCedula' para el ID {id}")
             save_reference_to_csv(id, url, 'Revisar LOG')
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error al procesar ID {id}: {e}")
     except AttributeError as e:
-        logger.error(f"No se encontró 'searchCedula' para el ID {id}. Error: {e}")
+        logger.error(f"Error de atributo en el ID {id}: {e}")
 
 # Ejecutar el proceso para el rango de IDs
 for id in range(START_ID, END_ID + 1):  # +1 para incluir el END_ID
